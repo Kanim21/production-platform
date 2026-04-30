@@ -1,0 +1,161 @@
+name: Terraform Lint & Security Scan
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - "terraform/**"
+      - ".github/workflows/tflint-and-checkov.yml"
+  push:
+    branches: [main]
+    paths:
+      - "terraform/**"
+
+permissions:
+  contents: read
+  security-events: write  # For SARIF upload to GitHub Security tab
+  pull-requests: write
+
+jobs:
+  tflint:
+    name: TFLint
+    runs-on: ubuntu-24.04
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup TFLint
+        uses: terraform-linters/setup-tflint@v4
+        with:
+          tflint_version: v0.52.0
+
+      - name: Initialize TFLint (install AWS ruleset)
+        run: tflint --init
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Run TFLint on modules
+        run: |
+          FAILED=0
+          for dir in terraform/modules/*/; do
+            echo "==> Linting $dir"
+            if ! tflint --chdir="$dir" --format=compact; then
+              FAILED=1
+            fi
+          done
+          exit $FAILED
+
+      - name: Run TFLint on environments
+        run: |
+          FAILED=0
+          for dir in terraform/environments/*/; do
+            echo "==> Linting $dir"
+            if ! tflint --chdir="$dir" --format=compact; then
+              FAILED=1
+            fi
+          done
+          exit $FAILED
+
+  checkov:
+    name: Checkov Security Scan
+    runs-on: ubuntu-24.04
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Run Checkov
+        uses: bridgecrewio/checkov-action@v12
+        with:
+          directory: terraform/
+          framework: terraform
+          output_format: sarif
+          output_file_path: checkov-results.sarif
+          soft_fail: false
+          skip_check: >-
+            CKV_AWS_149,
+            CKV2_AWS_62
+          # CKV_AWS_149: Secrets Manager secret not using customer-managed KMS (we use AWS-managed in dev)
+          # CKV2_AWS_62: S3 event notifications not enabled (not needed for state bucket)
+
+      - name: Upload Checkov SARIF to GitHub Security
+        if: always()
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: checkov-results.sarif
+          category: checkov
+
+  infracost:
+    name: Infracost (cost estimate)
+    runs-on: ubuntu-24.04
+    if: github.event_name == 'pull_request'
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Infracost
+        uses: infracost/actions/setup@v3
+        with:
+          api-key: ${{ secrets.INFRACOST_API_KEY }}
+
+      - name: Generate baseline cost (main branch)
+        run: |
+          git checkout origin/main
+          infracost breakdown \
+            --path=terraform/environments/prod \
+            --format=json \
+            --out-file=/tmp/infracost-baseline.json \
+            --terraform-var="pagerduty_sns_endpoint=placeholder" \
+            --terraform-var="slack_sns_endpoint=placeholder" \
+            --terraform-var='allowed_cidr_blocks=["0.0.0.0/0"]'
+
+      - name: Generate PR cost diff
+        run: |
+          git checkout ${{ github.head_ref }}
+          infracost diff \
+            --path=terraform/environments/prod \
+            --format=json \
+            --compare-to=/tmp/infracost-baseline.json \
+            --out-file=/tmp/infracost-diff.json \
+            --terraform-var="pagerduty_sns_endpoint=placeholder" \
+            --terraform-var="slack_sns_endpoint=placeholder" \
+            --terraform-var='allowed_cidr_blocks=["0.0.0.0/0"]'
+
+      - name: Post cost diff as PR comment
+        run: |
+          infracost comment github \
+            --path=/tmp/infracost-diff.json \
+            --repo=${{ github.repository }} \
+            --pull-request=${{ github.event.pull_request.number }} \
+            --github-token=${{ secrets.GITHUB_TOKEN }} \
+            --behavior=update
+
+  validate-modules:
+    name: Terraform Validate
+    runs-on: ubuntu-24.04
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: "1.9.5"
+
+      - name: Validate all environments
+        run: |
+          FAILED=0
+          for dir in terraform/environments/*/; do
+            echo "==> Validating $dir"
+            pushd "$dir" > /dev/null
+            # Init with a dummy backend to skip S3 (no AWS creds needed for validate)
+            if ! terraform init -backend=false -no-color > /dev/null 2>&1; then
+              echo "  INIT FAILED"
+              FAILED=1
+              popd > /dev/null
+              continue
+            fi
+            if ! terraform validate -no-color; then
+              FAILED=1
+            fi
+            popd > /dev/null
+          done
+          exit $FAILED

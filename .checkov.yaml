@@ -1,0 +1,16 @@
+framework:
+  - terraform
+
+directory:
+  - terraform/
+
+skip_check:
+  # AWS-managed KMS is acceptable in non-prod environments
+  - CKV_AWS_149
+  # S3 event notifications not required on state bucket
+  - CKV2_AWS_62
+  # VPC flow logs disabled in dev by design (cost saving)
+  - CKV2_AWS_11
+
+compact: true
+quiet: false

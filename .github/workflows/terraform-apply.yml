@@ -1,0 +1,158 @@
+name: Terraform Apply
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "terraform/**"
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: "Environment to apply (dev, staging, prod)"
+        required: true
+        type: choice
+        options: [dev, staging, prod]
+      confirm:
+        description: "Type the environment name again to confirm"
+        required: true
+
+permissions:
+  id-token: write
+  contents: read
+
+env:
+  TF_VERSION: "1.9.5"
+  AWS_REGION: "us-east-1"
+
+jobs:
+  validate-dispatch:
+    name: Validate manual dispatch inputs
+    runs-on: ubuntu-24.04
+    if: github.event_name == 'workflow_dispatch'
+    steps:
+      - name: Confirm environment matches
+        run: |
+          if [ "${{ github.event.inputs.environment }}" != "${{ github.event.inputs.confirm }}" ]; then
+            echo "::error::Confirmation does not match environment. Got '${{ github.event.inputs.confirm }}', expected '${{ github.event.inputs.environment }}'"
+            exit 1
+          fi
+
+  apply-dev:
+    name: Apply dev
+    runs-on: ubuntu-24.04
+    if: |
+      github.event_name == 'push' ||
+      (github.event_name == 'workflow_dispatch' && github.event.inputs.environment == 'dev')
+    environment: dev
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configure AWS credentials via OIDC
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: arn:aws:iam::${{ vars.AWS_ACCOUNT_ID }}:role/github-actions-terraform-dev
+          aws-region: ${{ env.AWS_REGION }}
+          role-session-name: terraform-apply-dev-${{ github.run_id }}
+
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: ${{ env.TF_VERSION }}
+
+      - name: Terraform Init
+        working-directory: terraform/environments/dev
+        run: terraform init -no-color
+
+      - name: Terraform Apply
+        working-directory: terraform/environments/dev
+        run: |
+          terraform apply \
+            -auto-approve \
+            -input=false \
+            -no-color \
+            -var="pagerduty_sns_endpoint=${{ secrets.PAGERDUTY_SNS_ENDPOINT }}" \
+            -var="slack_sns_endpoint=${{ secrets.SLACK_SNS_ENDPOINT }}"
+
+  apply-staging:
+    name: Apply staging
+    runs-on: ubuntu-24.04
+    needs: apply-dev
+    if: |
+      github.event_name == 'push' ||
+      (github.event_name == 'workflow_dispatch' && github.event.inputs.environment == 'staging')
+    environment: staging
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configure AWS credentials via OIDC
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: arn:aws:iam::${{ vars.AWS_ACCOUNT_ID }}:role/github-actions-terraform-staging
+          aws-region: ${{ env.AWS_REGION }}
+          role-session-name: terraform-apply-staging-${{ github.run_id }}
+
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: ${{ env.TF_VERSION }}
+
+      - name: Terraform Init
+        working-directory: terraform/environments/staging
+        run: terraform init -no-color
+
+      - name: Terraform Apply
+        working-directory: terraform/environments/staging
+        run: |
+          terraform apply \
+            -auto-approve \
+            -input=false \
+            -no-color \
+            -var="pagerduty_sns_endpoint=${{ secrets.PAGERDUTY_SNS_ENDPOINT }}" \
+            -var="slack_sns_endpoint=${{ secrets.SLACK_SNS_ENDPOINT }}"
+
+  apply-prod:
+    name: Apply prod (manual approval required)
+    runs-on: ubuntu-24.04
+    needs: apply-staging
+    if: |
+      github.event_name == 'workflow_dispatch' && github.event.inputs.environment == 'prod'
+    environment: prod  # GitHub environment with required reviewers configured
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configure AWS credentials via OIDC
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: arn:aws:iam::${{ vars.AWS_ACCOUNT_PROD_ID }}:role/github-actions-terraform-prod
+          aws-region: ${{ env.AWS_REGION }}
+          role-session-name: terraform-apply-prod-${{ github.run_id }}
+
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: ${{ env.TF_VERSION }}
+
+      - name: Terraform Init
+        working-directory: terraform/environments/prod
+        run: terraform init -no-color
+
+      - name: Terraform Plan (pre-apply confirmation)
+        working-directory: terraform/environments/prod
+        run: |
+          terraform plan \
+            -no-color \
+            -input=false \
+            -var="pagerduty_sns_endpoint=${{ secrets.PAGERDUTY_SNS_ENDPOINT }}" \
+            -var="slack_sns_endpoint=${{ secrets.SLACK_SNS_ENDPOINT }}" \
+            -var='allowed_cidr_blocks=${{ vars.PROD_ALLOWED_CIDRS }}'
+
+      - name: Terraform Apply
+        working-directory: terraform/environments/prod
+        run: |
+          terraform apply \
+            -auto-approve \
+            -input=false \
+            -no-color \
+            -var="pagerduty_sns_endpoint=${{ secrets.PAGERDUTY_SNS_ENDPOINT }}" \
+            -var="slack_sns_endpoint=${{ secrets.SLACK_SNS_ENDPOINT }}" \
+            -var='allowed_cidr_blocks=${{ vars.PROD_ALLOWED_CIDRS }}'

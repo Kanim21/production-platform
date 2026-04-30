@@ -1,0 +1,54 @@
+# Terraform
+**/.terraform/
+*.tfstate
+*.tfstate.*
+*.tfplan
+tfplan
+.terraform.lock.hcl
+crash.log
+crash.*.log
+override.tf
+override.tf.json
+*_override.tf
+*_override.tf.json
+
+# Secrets — never commit
+*.tfvars
+!*.tfvars.example
+*.env
+.env.*
+secrets/
+*secret*
+*credentials*
+
+# Go
+app/api/bin/
+app/api/coverage.out
+app/api/coverage.html
+
+# Node / React
+app/web/node_modules/
+app/web/dist/
+app/web/.env
+app/web/.env.local
+
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# IDE
+.idea/
+.vscode/settings.json
+*.swp
+*.swo
+
+# Build artifacts
+*.zip
+*.tar.gz
+dist/
+build/
+
+# Local dev overrides
+*.local.tf
+local-*.tf

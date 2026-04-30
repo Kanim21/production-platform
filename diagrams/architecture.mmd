@@ -1,0 +1,89 @@
+graph TB
+    subgraph Users["End Users"]
+        Browser["Browser / Mobile"]
+    end
+
+    subgraph Edge["AWS Edge"]
+        CF["CloudFront\n(CDN + WAF)"]
+        ACM["ACM\n(TLS Certificates)"]
+    end
+
+    subgraph VPC["VPC — 10.0.0.0/16 — us-east-1 (3 AZs)"]
+        subgraph PublicSubnets["Public Subnets (10.0.0.0/20, 10.0.16.0/20, 10.0.32.0/20)"]
+            ALB["Application\nLoad Balancer"]
+            NAT1["NAT GW\nus-east-1a"]
+            NAT2["NAT GW\nus-east-1b"]
+            NAT3["NAT GW\nus-east-1c"]
+        end
+
+        subgraph PrivateSubnets["Private Subnets — EKS Node Groups"]
+            subgraph EKSCluster["EKS 1.30"]
+                subgraph SystemNodes["system-nodes (m6i.large, on-demand)"]
+                    CA["Cluster\nAutoscaler"]
+                    ALBC["ALB\nController"]
+                    NTH["Node Term.\nHandler"]
+                    ExtSec["External\nSecrets"]
+                end
+                subgraph APINodes["api-nodes (m6i.xlarge, on-demand, min=2 max=20)"]
+                    API1["Go API\nPod"]
+                    API2["Go API\nPod"]
+                    APIX["...HPA\nscaled"]
+                end
+                subgraph WorkerNodes["worker-nodes (m6i.large, Spot, min=1 max=10)"]
+                    WEB["React\nnginx Pod"]
+                    PROM["Prometheus\nStack"]
+                    GRAF["Grafana"]
+                    FB["Fluent\nBit DS"]
+                end
+            end
+        end
+
+        subgraph DBSubnets["Database Subnets — No Internet Route"]
+            AURORA["Aurora PostgreSQL 15\nWriter + Reader\nMulti-AZ"]
+            REDIS["ElastiCache\nRedis 7\nCluster Mode"]
+        end
+    end
+
+    subgraph AWSServices["AWS Services"]
+        ECR["ECR\n(Container Images\n+ Vuln Scanning)"]
+        SM["Secrets\nManager"]
+        CW["CloudWatch\nLogs (365d)"]
+        S3TF["S3\n(Terraform State\n+ ALB Logs)"]
+        DDB["DynamoDB\n(State Lock)"]
+        GuardDuty["GuardDuty\n(Threat Detection)"]
+        IAM["IAM + OIDC\n(IRSA)"]
+    end
+
+    subgraph CICD["CI/CD — GitHub Actions"]
+        PR["Pull Request\n→ tflint + Checkov\n→ tf plan comment"]
+        Main["Main merge\n→ tf apply dev/staging\n→ Docker build\n→ Helm upgrade"]
+        ProdGate["Manual Approval\n→ tf apply prod\n→ Helm upgrade prod"]
+    end
+
+    Browser --> CF
+    CF --> ACM
+    CF --> ALB
+    ALB --> API1
+    ALB --> API2
+    ALB --> WEB
+    API1 --> AURORA
+    API1 --> REDIS
+    API2 --> AURORA
+    API2 --> REDIS
+    API1 --> SM
+    API2 --> SM
+    PrivateSubnets --> NAT1
+    PrivateSubnets --> NAT2
+    PrivateSubnets --> NAT3
+    EKSCluster --> ECR
+    FB --> CW
+    PROM --> CW
+    Main --> ECR
+    Main --> S3TF
+    PR --> S3TF
+    SM --> AURORA
+    IAM --> API1
+    IAM --> API2
+    IAM --> ALBC
+    IAM --> CA
+    IAM --> ExtSec
