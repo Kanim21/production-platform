@@ -1,5 +1,13 @@
 # production-platform
 
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+[![Terraform](https://img.shields.io/badge/Terraform-1.9-7B42BC?logo=terraform)](https://www.terraform.io/)
+[![AWS](https://img.shields.io/badge/AWS-EKS%20%7C%20Aurora%20%7C%20VPC-FF9900?logo=amazon-web-services)](https://aws.amazon.com/)
+[![Kubernetes](https://img.shields.io/badge/Kubernetes-1.30-326CE5?logo=kubernetes)](https://kubernetes.io/)
+[![CI](https://github.com/Kanim21/production-platform/actions/workflows/tflint-and-checkov.yml/badge.svg)](https://github.com/Kanim21/production-platform/actions/workflows/tflint-and-checkov.yml)
+
+![Architecture Diagram](diagrams/architecture.png)
+
 A production-grade AWS platform running a multi-tier e-commerce backend. Built to demonstrate the infrastructure patterns I reach for on day one: immutable infrastructure, GitOps delivery, defense-in-depth security, and operability as a first-class concern.
 
 **Simulated workload:** 10,000 concurrent users, Black Friday traffic spikes (10×), sub-100ms API p99, 99.95% monthly uptime SLO.
@@ -118,6 +126,8 @@ The Go API simulates catalog browsing, cart management, and order submission. Po
 
 **No service mesh (yet):** Istio/Linkerd adds operational complexity that isn't justified until we need mutual TLS between every pod or weighted traffic splitting. We get mTLS at the ALB→pod boundary via ACM and plan to revisit at 50+ services.
 
+**RDS secret auto-rotation deferred:** Auto-rotation requires a VPC-resident Lambda that can reach both the Aurora endpoint and the Secrets Manager API. Shipping a placeholder ZIP that doesn't exist on disk causes `terraform apply` to fail and misrepresents the security posture. Rotation is manual via the [rotation runbook](docs/runbooks/rds-secret-rotation.md) until the [AWS SAR rotation template](docs/adr/004-rds-secret-rotation.md) is wired in.
+
 ---
 
 ## Failure Scenarios & Recovery
@@ -151,25 +161,33 @@ What doesn't scale: the current single Aurora writer for high-write workloads. A
 
 ---
 
-## Repository Layout
+## Repository Map
 
 ```
 .
-├── terraform/
-│   ├── modules/          # Reusable: vpc, eks, rds, monitoring
-│   └── environments/     # dev / staging / prod — compose the modules
+├── .github/
+│   └── workflows/        # CI/CD: terraform-plan, terraform-apply, app-build, tflint-and-checkov
 ├── app/
-│   ├── api/              # Go HTTP API
-│   ├── web/              # React static frontend
-│   └── db/               # SQL migrations
-├── kubernetes/
-│   ├── app/              # Helm values for the application
-│   └── monitoring/       # kube-prometheus-stack Helm values
+│   ├── api/              # Go HTTP API — health endpoint, structured logging, Dockerfile
+│   ├── db/               # PostgreSQL migrations (Flyway-compatible naming)
+│   └── web/              # React frontend — nginx-served static build, Dockerfile
+├── diagrams/             # Mermaid source (.mmd) + rendered PNG architecture diagrams
 ├── docs/
-│   ├── adr/              # Architecture Decision Records
-│   └── runbooks/         # Incident response playbooks
-├── diagrams/             # Mermaid source files
-└── .github/workflows/    # CI/CD pipelines
+│   ├── adr/              # Architecture Decision Records — ADR-001 through ADR-004
+│   └── runbooks/         # Incident response playbooks (node, RDS failover, ingress, secret rotation)
+├── kubernetes/
+│   ├── app/              # Helm values for the application chart
+│   └── monitoring/       # kube-prometheus-stack Helm values (Prometheus, Grafana, Alertmanager)
+├── terraform/
+│   ├── environments/     # Per-environment root modules: dev / staging / prod
+│   └── modules/          # Reusable modules: vpc, eks, rds, monitoring
+├── ARCHITECTURE.md       # Narrative architecture deep-dive
+├── CHANGELOG.md          # Keep a Changelog format release history
+├── CODEOWNERS            # GitHub code-review ownership assignments
+├── CONTRIBUTING.md       # Branch strategy, commit conventions, local checks, PR checklist
+├── LICENSE               # MIT License
+├── Makefile              # Developer shortcuts: dev-up, dev-down, plan, apply, lint, checkov
+└── SECURITY.md           # Vulnerability disclosure policy and security design principles
 ```
 
 ---

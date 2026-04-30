@@ -21,6 +21,10 @@ secrets/
 *secret*
 *credentials*
 
+# Exception: docs that discuss secrets (ADRs and runbooks)
+!docs/**/*secret*
+!docs/**/*credential*
+
 # Go
 app/api/bin/
 app/api/coverage.out
