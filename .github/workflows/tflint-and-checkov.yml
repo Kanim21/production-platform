@@ -10,6 +10,8 @@ on:
     branches: [main]
     paths:
       - "terraform/**"
+      - ".checkov.yaml"
+      - ".github/workflows/tflint-and-checkov.yml"
 
 permissions:
   contents: read
