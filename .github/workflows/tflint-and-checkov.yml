@@ -67,14 +67,8 @@ jobs:
         run: pip install checkov
 
       - name: Run Checkov
-        run: |
-          checkov -d terraform/ \
-            --framework terraform \
-            --output sarif \
-            --output-file-path checkov-results.sarif \
-            --skip-check CKV_AWS_149,CKV2_AWS_62
-        # CKV_AWS_149: Secrets Manager secret not using customer-managed KMS (we use AWS-managed in dev)
-        # CKV2_AWS_62: S3 event notifications not enabled (not needed for state bucket)
+        # skip-check list and directory/framework are in .checkov.yaml
+        run: checkov --output sarif --output-file-path checkov-results.sarif
 
       - name: Upload Checkov SARIF to GitHub Security
         if: always()

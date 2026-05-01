@@ -4,7 +4,7 @@ framework:
 directory:
   - terraform/
 
-skip_check:
+skip-check:
   # AWS-managed KMS is acceptable in non-prod environments
   - CKV_AWS_149
   # S3 event notifications not required on state bucket
