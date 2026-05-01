@@ -6,6 +6,11 @@
 [![Kubernetes](https://img.shields.io/badge/Kubernetes-1.30-326CE5?logo=kubernetes)](https://kubernetes.io/)
 [![CI](https://github.com/Kanim21/production-platform/actions/workflows/tflint-and-checkov.yml/badge.svg)](https://github.com/Kanim21/production-platform/actions/workflows/tflint-and-checkov.yml)
 
+> **Reference architecture.** This repo is a portfolio piece. `terraform apply` is wired
+> but intentionally gated behind manual `workflow_dispatch` — there is no live AWS account
+> behind it. The CI pipeline (lint, validate, security scan) runs fully credential-less.
+> To deploy it yourself, see [ADR-005](docs/adr/005-reference-architecture-not-deployed.md).
+
 ![Architecture Diagram](diagrams/architecture.png)
 
 A production-grade AWS platform running a multi-tier e-commerce backend. Built to demonstrate the infrastructure patterns I reach for on day one: immutable infrastructure, GitOps delivery, defense-in-depth security, and operability as a first-class concern.

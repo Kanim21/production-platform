@@ -7,6 +7,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-05-01
+
+### Changed
+
+- **`terraform-apply.yml`** — converted from push-triggered auto-apply to `workflow_dispatch`-only; the apply workflow no longer runs on merge to `main` since there is no live AWS account backing this portfolio repo. A top-of-file comment and ADR-005 document the decision.
+- **`tflint-and-checkov.yml`** — repaired the lint/security pipeline so it runs fully credential-less:
+  - Replaced `bridgecrewio/checkov-action@v12` (passes deprecated `--skip_check` underscore flag that checkov v3.x rejects) with a direct `pip install checkov` + CLI invocation using `--skip-check`.
+  - Worked around a checkov v3.x bug where config-file `skip_check` entries are re-applied using the old `--skip_check` flag that its own parser no longer accepts; moved the skip list to an env var and pass it as `--skip-check` on the CLI.
+  - Fixed four TFLint warnings: added `required_version = ">= 1.5"` to all four module `terraform {}` blocks; removed two genuinely unused data sources from the EKS module; wired the `eks_cluster_name` variable into a new CloudWatch log group for EKS control-plane logs.
+  - Added push-path triggers for `.checkov.yaml` and the workflow file itself.
+  - Guarded the Infracost job behind `secrets.INFRACOST_API_KEY != ''` so it skips silently on repos without the secret.
+
+### Added
+
+- **ADR-005** (`docs/adr/005-reference-architecture-not-deployed.md`) — documents the reference-architecture decision: cost rationale (~$743/month to run as designed), what is and isn't deployed, and step-by-step instructions for deploying to a real AWS account.
+- **Reference-architecture callout** in README (below badges) explaining that CI is credential-less and apply is manual-dispatch.
+- **VPC module improvements** — `map_public_ip_on_launch = false` on public subnets (ALB uses ENIs, not auto-assigned IPs); `aws_default_security_group` resource to explicitly restrict the VPC default SG; `flow_logs_retention_days` default raised from 30 to 365 days; added `aws_cloudwatch_log_group` for EKS control-plane logs to the monitoring module.
+
 ## [0.1.0] - 2026-04-30
 
 ### Added

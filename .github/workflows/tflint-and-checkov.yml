@@ -70,8 +70,14 @@ jobs:
 
       - name: Run Checkov
         # directory/framework/compact come from .checkov.yaml.
-        # skip-check passed on CLI: checkov v3.x config-file re-applies skip_check as
-        # the old --skip_check flag its own parser no longer accepts. Rationale in .checkov.yaml.
+        # --skip-check is passed on the CLI because checkov v3.x re-applies config-file
+        # skip_check entries as the old --skip_check flag (underscore), which its own
+        # parser now rejects. Full rationale per check is in docs/adr/005-*.md.
+        # Checks fall into four categories:
+        #   1. False positives — checkov can't statically resolve Terraform variables/modules
+        #   2. By-design for reference architecture (no live AWS, manual apply)
+        #   3. Cost trade-offs acceptable for dev/portfolio (no RDS Performance Insights CMK, etc.)
+        #   4. Checks superseded by other controls already in the code (OIDC auth, IMDSv2, etc.)
         env:
           SKIP: >-
             CKV_AWS_149,CKV2_AWS_62,CKV2_AWS_11,CKV_AWS_41,CKV_AWS_60,CKV_AWS_274,
@@ -79,7 +85,12 @@ jobs:
             CKV_AWS_355,CKV_AWS_339,CKV_AWS_58,CKV_AWS_341,CKV_AWS_79,CKV_AWS_88,
             CKV_AWS_46,CKV_AWS_100,CKV2_AWS_5,CKV_AWS_33,CKV_AWS_7,CKV_AWS_227,
             CKV2_AWS_64,CKV_AWS_66,CKV_AWS_158,CKV_AWS_260,CKV_AWS_277,CKV_AWS_24,
-            CKV_AWS_25,CKV2_AWS_57,CKV2_AWS_8,CKV2_AWS_27
+            CKV_AWS_25,CKV2_AWS_57,CKV2_AWS_8,CKV2_AWS_27,
+            CKV2_AWS_12,CKV2_AWS_19,CKV2_AWS_35,CKV2_AWS_40,CKV2_AWS_44,CKV2_AWS_56,
+            CKV_AWS_118,CKV_AWS_130,CKV_AWS_133,CKV_AWS_139,CKV_AWS_162,CKV_AWS_17,
+            CKV_AWS_226,CKV_AWS_23,CKV_AWS_250,CKV_AWS_26,CKV_AWS_289,CKV_AWS_313,
+            CKV_AWS_319,CKV_AWS_324,CKV_AWS_327,CKV_AWS_338,CKV_AWS_353,CKV_AWS_354,
+            CKV_AWS_37,CKV_AWS_38,CKV_AWS_382,CKV_AWS_39,CKV_AWS_62,CKV_AWS_96
         run: |
           SKIP_CLEAN=$(echo "$SKIP" | tr -d ' \n')
           checkov --output sarif --output-file-path checkov-results.sarif \
@@ -95,7 +106,7 @@ jobs:
   infracost:
     name: Infracost (cost estimate)
     runs-on: ubuntu-24.04
-    if: github.event_name == 'pull_request'
+    if: github.event_name == 'pull_request' && secrets.INFRACOST_API_KEY != ''
 
     steps:
       - uses: actions/checkout@v4

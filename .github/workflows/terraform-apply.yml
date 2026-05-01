@@ -1,3 +1,6 @@
+# Manual-dispatch only. This is a reference architecture — terraform apply is intentionally
+# not wired to a live AWS account. See docs/adr/005-reference-architecture-not-deployed.md
+# for the full context, cost rationale, and steps required to deploy this to a real account.
 name: Terraform Apply
 
 on:
