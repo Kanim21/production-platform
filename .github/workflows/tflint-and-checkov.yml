@@ -70,21 +70,20 @@ jobs:
 
       - name: Run Checkov
         # directory/framework/compact come from .checkov.yaml.
-        # skip-check is passed on the CLI because checkov v3.x config-file re-applies
-        # skip_check as the old --skip_check flag, which its own parser now rejects.
-        # Rationale for each skip is documented in .checkov.yaml.
+        # skip-check passed on CLI: checkov v3.x config-file re-applies skip_check as
+        # the old --skip_check flag its own parser no longer accepts. Rationale in .checkov.yaml.
+        env:
+          SKIP: >-
+            CKV_AWS_149,CKV2_AWS_62,CKV2_AWS_11,CKV_AWS_41,CKV_AWS_60,CKV_AWS_274,
+            CKV_AWS_61,CKV_AWS_290,CKV_AWS_63,CKV_AWS_288,CKV_AWS_287,CKV_AWS_286,
+            CKV_AWS_355,CKV_AWS_339,CKV_AWS_58,CKV_AWS_341,CKV_AWS_79,CKV_AWS_88,
+            CKV_AWS_46,CKV_AWS_100,CKV2_AWS_5,CKV_AWS_33,CKV_AWS_7,CKV_AWS_227,
+            CKV2_AWS_64,CKV_AWS_66,CKV_AWS_158,CKV_AWS_260,CKV_AWS_277,CKV_AWS_24,
+            CKV_AWS_25,CKV2_AWS_57,CKV2_AWS_8,CKV2_AWS_27
         run: |
+          SKIP_CLEAN=$(echo "$SKIP" | tr -d ' \n')
           checkov --output sarif --output-file-path checkov-results.sarif \
-            --skip-check \
-              CKV_AWS_149,CKV2_AWS_62,CKV2_AWS_11,\
-              CKV_AWS_41,CKV_AWS_60,CKV_AWS_274,CKV_AWS_61,\
-              CKV_AWS_290,CKV_AWS_63,CKV_AWS_288,CKV_AWS_287,CKV_AWS_286,CKV_AWS_355,\
-              CKV_AWS_339,CKV_AWS_58,CKV_AWS_341,CKV_AWS_79,\
-              CKV_AWS_88,CKV_AWS_46,CKV_AWS_100,CKV2_AWS_5,\
-              CKV_AWS_33,CKV_AWS_7,CKV_AWS_227,CKV2_AWS_64,\
-              CKV_AWS_66,CKV_AWS_158,\
-              CKV_AWS_260,CKV_AWS_277,CKV_AWS_24,CKV_AWS_25,\
-              CKV2_AWS_57,CKV2_AWS_8,CKV2_AWS_27
+            --skip-check "$SKIP_CLEAN"
 
       - name: Upload Checkov SARIF to GitHub Security
         if: always()
