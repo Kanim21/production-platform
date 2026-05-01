@@ -1,10 +1,6 @@
 name: Terraform Apply
 
 on:
-  push:
-    branches: [main]
-    paths:
-      - "terraform/**"
   workflow_dispatch:
     inputs:
       environment:
@@ -28,7 +24,6 @@ jobs:
   validate-dispatch:
     name: Validate manual dispatch inputs
     runs-on: ubuntu-24.04
-    if: github.event_name == 'workflow_dispatch'
     steps:
       - name: Confirm environment matches
         run: |
@@ -40,9 +35,7 @@ jobs:
   apply-dev:
     name: Apply dev
     runs-on: ubuntu-24.04
-    if: |
-      github.event_name == 'push' ||
-      (github.event_name == 'workflow_dispatch' && github.event.inputs.environment == 'dev')
+    if: github.event.inputs.environment == 'dev'
     environment: dev
 
     steps:
@@ -77,9 +70,7 @@ jobs:
     name: Apply staging
     runs-on: ubuntu-24.04
     needs: apply-dev
-    if: |
-      github.event_name == 'push' ||
-      (github.event_name == 'workflow_dispatch' && github.event.inputs.environment == 'staging')
+    if: github.event.inputs.environment == 'staging'
     environment: staging
 
     steps:

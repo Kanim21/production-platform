@@ -206,4 +206,6 @@ What doesn't scale: the current single Aurora writer for high-write workloads. A
 
 ## Contributing
 
-Branch → PR → CI must pass → one approval → squash merge. Environments are promoted sequentially: dev → staging (automatic on merge) → prod (manual approval gate in GitHub Actions).
+Branch → PR → CI must pass → one approval → squash merge.
+
+**Terraform apply is manual** — there is no real AWS account backing this portfolio repo, so `terraform-apply.yml` is triggered exclusively via `workflow_dispatch` (Actions → Terraform Apply → Run workflow). This keeps the lint/plan badges green without attempting OIDC auth against a non-existent account. When wiring this to a real account, set `AWS_ACCOUNT_ID` and `AWS_ACCOUNT_PROD_ID` as repository variables and the workflow is ready to go.

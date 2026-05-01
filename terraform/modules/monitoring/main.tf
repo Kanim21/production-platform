@@ -1,4 +1,5 @@
 terraform {
+  required_version = ">= 1.5"
   required_providers {
     aws = {
       source  = "hashicorp/aws"
@@ -59,6 +60,13 @@ resource "aws_cloudwatch_log_group" "application" {
 resource "aws_cloudwatch_log_group" "access_logs" {
   name              = "/production-platform/${var.environment}/access"
   retention_in_days = var.log_retention_days["access"]
+
+  tags = var.tags
+}
+
+resource "aws_cloudwatch_log_group" "eks_control_plane" {
+  name              = "/aws/eks/${var.eks_cluster_name}/cluster"
+  retention_in_days = var.log_retention_days["audit"]
 
   tags = var.tags
 }
