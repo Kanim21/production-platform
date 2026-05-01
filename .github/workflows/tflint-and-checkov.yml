@@ -103,51 +103,6 @@ jobs:
           sarif_file: checkov-results.sarif
           category: checkov
 
-  infracost:
-    name: Infracost (cost estimate)
-    runs-on: ubuntu-24.04
-    if: github.event_name == 'pull_request' && secrets.INFRACOST_API_KEY != ''
-
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Setup Infracost
-        uses: infracost/actions/setup@v3
-        with:
-          api-key: ${{ secrets.INFRACOST_API_KEY }}
-
-      - name: Generate baseline cost (main branch)
-        run: |
-          git checkout origin/main
-          infracost breakdown \
-            --path=terraform/environments/prod \
-            --format=json \
-            --out-file=/tmp/infracost-baseline.json \
-            --terraform-var="pagerduty_sns_endpoint=placeholder" \
-            --terraform-var="slack_sns_endpoint=placeholder" \
-            --terraform-var='allowed_cidr_blocks=["0.0.0.0/0"]'
-
-      - name: Generate PR cost diff
-        run: |
-          git checkout ${{ github.head_ref }}
-          infracost diff \
-            --path=terraform/environments/prod \
-            --format=json \
-            --compare-to=/tmp/infracost-baseline.json \
-            --out-file=/tmp/infracost-diff.json \
-            --terraform-var="pagerduty_sns_endpoint=placeholder" \
-            --terraform-var="slack_sns_endpoint=placeholder" \
-            --terraform-var='allowed_cidr_blocks=["0.0.0.0/0"]'
-
-      - name: Post cost diff as PR comment
-        run: |
-          infracost comment github \
-            --path=/tmp/infracost-diff.json \
-            --repo=${{ github.repository }} \
-            --pull-request=${{ github.event.pull_request.number }} \
-            --github-token=${{ secrets.GITHUB_TOKEN }} \
-            --behavior=update
-
   validate-modules:
     name: Terraform Validate
     runs-on: ubuntu-24.04
