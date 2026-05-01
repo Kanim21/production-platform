@@ -22,6 +22,11 @@ resource "aws_vpc" "this" {
   tags = merge(var.tags, { Name = "${var.name}-vpc" })
 }
 
+resource "aws_default_security_group" "default" {
+  vpc_id = aws_vpc.this.id
+  tags   = merge(var.tags, { Name = "${var.name}-default-sg-DO-NOT-USE" })
+}
+
 # ── Internet Gateway ──────────────────────────────────────────────────────────
 
 resource "aws_internet_gateway" "this" {
@@ -38,7 +43,7 @@ resource "aws_subnet" "public" {
   vpc_id                  = aws_vpc.this.id
   cidr_block              = var.public_subnet_cidrs[count.index]
   availability_zone       = var.azs[count.index]
-  map_public_ip_on_launch = true
+  map_public_ip_on_launch = false
 
   tags = merge(var.tags, {
     Name                     = "${var.name}-public-${var.azs[count.index]}"
