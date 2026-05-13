@@ -76,7 +76,7 @@ graph TB
 | Database | Aurora PostgreSQL 15 | Multi-AZ failover ~30s, storage auto-scaling, compatible with RDS Proxy |
 | Networking | Custom VPC, 3-tier subnet design | Blast-radius isolation; database subnets have zero internet route |
 | Ingress | AWS Load Balancer Controller + ALB | Native integration with WAF, ACM, and target group deregistration |
-| Observability | kube-prometheus-stack + Loki | Full metrics/logs/alerts stack, no CloudWatch vendor lock-in ([ADR-003](docs/adr/003-prometheus-over-cloudwatch.md)) |
+| Observability | kube-prometheus-stack | Prometheus + Grafana + Alertmanager for metrics and alerting; sub-second query latency vs. CloudWatch Metrics Insights. Application logs are stdout/stderr; centralized log aggregation is deferred ([ADR-003](docs/adr/003-prometheus-over-cloudwatch.md)) |
 | CI/CD | GitHub Actions + OIDC | No static AWS keys anywhere; per-job short-lived credentials |
 | Secret management | AWS Secrets Manager + IRSA | Pod-level IAM, no secret injection via env vars |
 | Container registry | ECR with image scanning | Integrated vuln scanning; lifecycle policies keep costs down |
@@ -125,7 +125,7 @@ The Go API simulates catalog browsing, cart management, and order submission. Po
 
 **Aurora over RDS single-instance:** Aurora's shared storage architecture means failover is ~30s (vs. ~60–120s for standard Multi-AZ RDS). For checkout, that's the difference between a user retry and an abandoned cart.
 
-**kube-prometheus-stack over CloudWatch-only:** CloudWatch Metrics Insights queries are slow (15s+) for incident response. Prometheus queries are sub-second. We ship CloudWatch logs for compliance/retention but alert entirely from Prometheus. Full reasoning in [ADR-003](docs/adr/003-prometheus-over-cloudwatch.md).
+**kube-prometheus-stack over CloudWatch-only:** CloudWatch Metrics Insights queries are slow (15s+) for incident response. Prometheus queries are sub-second. We alert entirely from Prometheus rather than logs — metric-based alerts are faster and lower-cardinality than log-based ones. Application logs are stdout/stderr (kubectl logs); a centralized log aggregator (Loki, CloudWatch Container Insights, or an OTLP collector) is the obvious next addition when log-based correlation becomes a frequent need. Full reasoning in [ADR-003](docs/adr/003-prometheus-over-cloudwatch.md).
 
 **Spot instances for non-critical node groups:** ~70% cost reduction for batch/observability workloads. API pods run exclusively on on-demand nodes with PodDisruptionBudgets. Spot interruptions are handled by the Node Termination Handler.
 
@@ -157,7 +157,7 @@ The current design hits predictable ceilings. Here's the upgrade path, in order 
 1. **Add Redis caching in front of Postgres** (catalog reads drop from DB to cache; ~10× read throughput immediately)
 2. **RDS Proxy** (connection pooling; EKS pods × goroutines × 20 connections = DB exhaustion without it at scale)
 3. **Read replicas for Aurora** (route all GET queries to reader endpoint; writer handles only mutations)
-4. **Horizontal pod autoscaling on API** (already wired via KEDA on SQS queue depth for order processing)
+4. **Horizontal pod autoscaling on API** (CPU-based HPA already wired: min 2 / max 20 replicas, scales up at 70% average CPU utilization — adds 2 pods per 60s after a 30s stabilization window, removes 1 pod per 60s behind a 5-minute scale-down window to prevent flapping)
 5. **CloudFront for API responses** (cache product catalog at edge; TTL=60s is fine for catalog data)
 6. **Multi-region active-passive** (Route 53 health check failover to a second region; data replication via Aurora Global Database)
 7. **Event-driven order processing** (SQS → Lambda/EKS consumers; decouple checkout from fulfillment pipeline)

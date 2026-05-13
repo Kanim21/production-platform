@@ -16,7 +16,7 @@ This decision is shaped by a concrete pain point: in the previous organization, 
 
 ## Decision
 
-Run kube-prometheus-stack as the primary observability stack. Ship logs to CloudWatch for compliance and long-term retention. CloudWatch alarms are used only for AWS-managed service health (RDS, ALB, NAT Gateway) where Prometheus cannot scrape metrics directly.
+Run kube-prometheus-stack as the primary observability stack. Application logs to stdout/stderr only — centralized log aggregation is deferred. When this architecture is deployed to a live account (see ADR-005), the candidate aggregators are Loki (if staying inside Kubernetes), CloudWatch Container Insights (lowest-friction AWS-native), or an OTLP collector feeding a managed backend. The choice depends on retention requirements, query patterns, and whether log-to-metric correlation is a frequent workflow. CloudWatch alarms are used only for AWS-managed service health (RDS, ALB, NAT Gateway) where Prometheus cannot scrape metrics directly.
 
 ---
 
@@ -40,8 +40,8 @@ Run kube-prometheus-stack as the primary observability stack. Ship logs to Cloud
 
 We still use CloudWatch for:
 - **RDS metrics** (CPU, connections, replication lag) — scraped via CloudWatch Exporter sidecar into Prometheus
-- **ALB access logs** — shipped to S3 via CloudWatch Logs; queried with Athena for ad-hoc analysis
-- **Container logs** — Fluent Bit ships all pod logs to CloudWatch Logs for 365-day retention and compliance
+- **ALB access logs** — deferred. The reference architecture does not enable access_logs.s3.bucket on the ALB ingress. When deployed, the standard pattern is S3 destination with an Athena workgroup for ad-hoc analysis; the alternative is forwarding to the centralized log aggregator (see logs decision above) for unified querying.
+- **Container logs** — deferred. The reference architecture does not ship a Fluent Bit DaemonSet or wire amazon-cloudwatch-observability. When deployed, either approach works; the trade-off is operational ownership (Fluent Bit = more control, more YAML) vs. managed simplicity (Container Insights addon).
 - **AWS-managed service alarms** — NAT Gateway packet drop, EKS API server latency are CloudWatch-native and complement Prometheus
 
 ### Operational overhead of running Prometheus in-cluster
